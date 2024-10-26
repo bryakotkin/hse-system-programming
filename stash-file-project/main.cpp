@@ -3,10 +3,9 @@
 #include <openssl/evp.h>
 #include <cstring>
 #include <openssl/rand.h>
-
-const int KEY_SIZE = 16;  // 128 бит = 16 байт
-const int IV_SIZE = 16;   // IV для режима CTR также 16 байт
-const int ENCRYPTED_BYTES_SIZE = 8;
+#include <fstream>
+#include <string.h>
+#include <map>
 
 // Magic numbers
 // https://gist.github.com/leommoore/f9e57ba2aa4bf197ebc5
@@ -17,6 +16,15 @@ const int ENCRYPTED_BYTES_SIZE = 8;
 
 // https://wiki.openssl.org/index.php/EVP_Symmetric_Encryption_and_Decryption
 // https://github.com/mohabouz/CPP-AES-OpenSSL-Encrypt/blob/master/utils.cpp
+
+const int KEY_SIZE = 16;  // 128 бит = 16 байт
+const int IV_SIZE = 16;   // IV для режима CTR также 16 байт
+const int ENCRYPTED_BYTES_SIZE = 8;
+
+enum Mode {
+    ENCRYPT,
+    DECRYPT
+};
 
 int encrypt(
     const unsigned char* inputData, 
@@ -80,39 +88,22 @@ int decrypt(
     return outputLen;
 }
 
-std::string encryptHeader(std::string headerText, unsigned char* key, unsigned char* iv) {
-    unsigned char *headerTextBytes = (unsigned char *) headerText.c_str();
-    unsigned int size = std::strlen((char *) headerTextBytes);
-    unsigned char *cipher = (unsigned char *) malloc(sizeof(char) * size);
+unsigned char* encryptHeader(unsigned char* headerText, unsigned char* key, unsigned char* iv) {
+    unsigned int size = std::strlen((char *) headerText);
+    unsigned char* cipher = (unsigned char *) malloc(size);
 
-    int cipherSize = encrypt(
-        headerTextBytes, 
-        size, 
-        key, 
-        iv, 
-        cipher
-    );
+    encrypt(headerText, size, key, iv, cipher);
 
-    std::string cipherStr((char *) cipher);
-
-    return cipherStr;
+    return cipher;
 }
 
-std::string decryptHeader(std::string ecryptedHeaderText, unsigned char* key, unsigned char* iv) {
-    unsigned char *headerTextBytes = (unsigned char *) ecryptedHeaderText.c_str();
-    unsigned int size = std::strlen((char *) headerTextBytes);
-    unsigned char *decryptedText = (unsigned char *) malloc(sizeof(char) * size);
+unsigned char* decryptHeader(unsigned char* ecryptedHeaderText, unsigned char* key, unsigned char* iv) {
+    unsigned int size = std::strlen((char *) ecryptedHeaderText);
+    unsigned char* decryptedText = (unsigned char *) malloc(size);
 
-    int decryptedTextSize = decrypt(
-        headerTextBytes, 
-        size, 
-        key, 
-        iv,
-        decryptedText
-    );
+    decrypt(ecryptedHeaderText, size, key, iv, decryptedText);
 
-    std::string resultText((char *) decryptedText);
-    return resultText;
+    return decryptedText;
 }
 
 bool validatePath(const std::string& userPath, std::error_code& error_code) {
@@ -132,43 +123,53 @@ bool validatePath(const std::string& userPath, std::error_code& error_code) {
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 2) {
+    if (argc != 3) {
         std::cout << "Use: " << argv[0] << " <path to file>" << std::endl;
         return -1;
     }
-    const std::string userPath = argv[1];
     std::error_code error_code;
-    if (!validatePath(userPath, error_code)) {
+    if (!validatePath(argv[2], error_code)) {
         std::cerr << "Validation failure with error: " << error_code.message() << std::endl;
         return -1;
     }
+    
+    // oh no cringe
+    unsigned char key[KEY_SIZE] = { 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35 };
+    unsigned char iv[IV_SIZE] = { 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35 };
 
-    unsigned char key[KEY_SIZE];
-    unsigned char iv[IV_SIZE];
-    unsigned char ciphertext[8];
-    unsigned char decryptedtext[8];
-
-    std::string plainText = "12345678";
-    int plaintext_len = plainText.size();
-
-    if (!RAND_bytes(key, KEY_SIZE) || !RAND_bytes(iv, IV_SIZE)) {
-        return -1;
+    std::fstream file(argv[2], std::ios::in | std::ios::out | std::ios::binary); 
+    if (!file) { 
+        std::cerr << "Error opening file!" << std::endl; 
+        return -1; 
     }
 
-    std::string encryptedText = encryptHeader(
-        plainText,
-        key,
-        iv
-    );
+    std::map <std::string, Mode> mapping;
+    mapping["decrypt"] = DECRYPT;
+    mapping["encrypt"] = ENCRYPT;
 
-    std::string decryptedText = decryptHeader(
-        encryptedText,
-        key,
-        iv
-    );
-
-    std::cout << encryptedText << " " << encryptedText.size() << std::endl;
-    std::cout << decryptedText << std::endl;
-
+    unsigned char* encrypted = nullptr;
+    unsigned char* decrypted = nullptr;
+    char* headerTextToEncrypt = (char *) malloc(ENCRYPTED_BYTES_SIZE + 1);
+    char* headerTextToDecrypt = (char *) malloc(ENCRYPTED_BYTES_SIZE + 1);
+    switch (mapping[argv[1]]) {
+        case ENCRYPT:
+            file.read(headerTextToEncrypt, ENCRYPTED_BYTES_SIZE);
+            encrypted = encryptHeader((unsigned char *) headerTextToEncrypt, key, iv);
+            file.seekp(0);
+            file.write((char *) encrypted, ENCRYPTED_BYTES_SIZE);
+            file.close();
+            break;
+        case DECRYPT:
+            file.read(headerTextToDecrypt, ENCRYPTED_BYTES_SIZE);
+            decrypted = decryptHeader((unsigned char *) headerTextToDecrypt, key, iv);
+            file.seekp(0);
+            file.write((char *) decrypted, ENCRYPTED_BYTES_SIZE);
+            file.close();
+            break;
+        default:
+            file.close();
+            return -1;
+    }
+    
     return 0;
 }
