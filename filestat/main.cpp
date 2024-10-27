@@ -78,4 +78,6 @@ int main(int argc, char *argv[])
         std::string fileDescription = fileTypeDescription(stat.first);
         std::cout << fileDescription << ": " << stat.second << std::endl;
     }
+
+    return 0;
 }
