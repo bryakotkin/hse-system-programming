@@ -142,8 +142,8 @@ int main(int argc, char *argv[]) {
     Mode mode = modeHandler.map(argv[1]);
     
     const int size = ENCRYPTED_BYTES_SIZE;
-    char* headerText = (char *) malloc(size + 1);
-    unsigned char* result = (unsigned char *) malloc(size + 1);
+    char* headerText = (char *) malloc(size);
+    unsigned char* result = (unsigned char *) malloc(size);
 
     switch (mode) {
         case ENCRYPT:
