@@ -33,6 +33,26 @@ public:
     }
 };
 
+bool createDirectoryIfNotExists(const std::string& directoryPath) {
+    std::filesystem::path dirPath(directoryPath);
+    std::error_code ec;
+
+    if (std::filesystem::exists(dirPath, ec)) {
+        return true;
+    }
+
+    if (!std::filesystem::create_directory(dirPath, ec)) {
+        std::cerr << "Failed to create directory: " << ec.message() << std::endl;
+        return false;
+    }
+    
+    std::filesystem::permissions(dirPath,
+        std::filesystem::perms::owner_write | std::filesystem::perms::owner_exec,
+        std::filesystem::perm_options::replace);
+
+    return true;
+}
+
 bool validatePath(const std::string& userPath, std::error_code& error_code) {
     const std::filesystem::path path(userPath);
     if (std::filesystem::is_directory(path, error_code)) {
@@ -58,6 +78,10 @@ int main(int argc, char *argv[]) {
     std::error_code error_code;
     if (!validatePath(userPath, error_code)) {
         std::cerr << "Validation failure with error: " << error_code.message() << std::endl;
+        return -1;
+    }
+
+    if (!createDirectoryIfNotExists(PATH_TO_HIDDEN_DIRECTORY)) {
         return -1;
     }
 
