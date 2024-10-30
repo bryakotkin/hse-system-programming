@@ -20,7 +20,7 @@ void readDirectory(const std::string& name, std::vector<std::string>& v)
     closedir(dirp);
 }
 
-const std::string fileTypeDescription(unsigned int ifmp) {
+const std::string fileTypeDescription(unsigned int ifmp, mode_t mode) {
     std::string description;
     switch (ifmp) {
         case S_IFDIR:
@@ -33,7 +33,7 @@ const std::string fileTypeDescription(unsigned int ifmp) {
             description = "BLOCK DEVICE";
             break;
         case S_IFREG:
-            description = "REGULAR FILE";
+            description = (mode & (S_IXUSR | S_IXGRP | S_IXOTH)) ? "EXECUTABLE FILE" : "REGULAR FILE";
             break;
         case S_IFIFO:
             description = "FIFO";
@@ -57,26 +57,26 @@ int main(int argc, char *argv[])
     std::vector<std::string> list;
     readDirectory("./", list);
 
-    std::map<unsigned int, int> filestat;
+    std::map<std::string, int> filestat;
     for (const auto& file : list) 
     {
         // if (file == "." || file == "..") {
         //     continue;
         // }
         struct stat buf;
-        if (stat(file.c_str(), &buf) != 0) {
+        if (lstat(file.c_str(), &buf) != 0) {
             std::cerr << "Error getting stats for file: " << file << std::endl;
             continue;
         }
         int ifmp = buf.st_mode & S_IFMT;
+        std::string fileDescription = fileTypeDescription(ifmp, buf.st_mode);
 
-        filestat[ifmp] += 1;
+        filestat[fileDescription] += 1;
     }
 
     for (auto const& stat : filestat)
     {
-        std::string fileDescription = fileTypeDescription(stat.first);
-        std::cout << fileDescription << ": " << stat.second << std::endl;
+        std::cout << stat.first << ": " << stat.second << std::endl;
     }
 
     return 0;
