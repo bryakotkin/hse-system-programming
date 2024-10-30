@@ -60,9 +60,9 @@ int main(int argc, char *argv[])
     std::map<std::string, int> filestat;
     for (const auto& file : list) 
     {
-        // if (file == "." || file == "..") {
-        //     continue;
-        // }
+        if (file == "." || file == "..") {
+            continue;
+        }
         struct stat buf;
         if (lstat(file.c_str(), &buf) != 0) {
             std::cerr << "Error getting stats for file: " << file << std::endl;
