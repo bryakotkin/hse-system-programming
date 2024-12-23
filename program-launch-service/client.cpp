@@ -2,15 +2,14 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#include <cstring>
 #include <string>
-#include <cstdlib>
+#include <sstream>
 
 #define SERVERPORT 8888
 #define SERVERADDRESS "127.0.0.1"
+#define MAXBUF 1024
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
@@ -24,7 +23,7 @@ int main(int argc, char *argv[]) {
 
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (sock < 0) {
-        perror("Failed to create socket");
+        std::cerr << "Failed to create socket" << std::endl;
         return 1;
     }
 
@@ -34,20 +33,34 @@ int main(int argc, char *argv[]) {
 
     returnStatus = connect(sock, (sockaddr*)&serverAddr, sizeof(sockaddr));
     if (returnStatus == -1) {
-        perror("Failed to connect to socket");
+        std::cerr << "Failed to connect to socket" << std::endl;
         return 1;
     }
 
-    const char* message = "123";
-    returnStatus = write(sock, message, strlen(message));
+    std::ostringstream oss;
+    for (int i = 1; i < argc; ++i) {
+        if (i > 1) {
+            oss << " ";
+        }
+        oss << argv[i];
+    }
+    std::string data = oss.str();
+    std::cout << "Command to sent: " << data << std::endl;
+    returnStatus = write(sock, data.c_str(), data.length());
     if (returnStatus == -1) {
-        fprintf(stderr, "Could not send command to server!\n");
+        std::cerr << "Could not send command to server" << std::endl;
+        close(sock);
         exit(1);
     } else {
         printf("Sent %d bytes to server\n", returnStatus);
     }
-    
+
     shutdown(sock, SHUT_WR);
+    int counter;
+    char buf[MAXBUF];
+    while ((counter = read(sock, buf, MAXBUF)) > 0) {
+        write(STDOUT_FILENO, buf, counter);
+    }
 
     close(sock);
     return 0;
