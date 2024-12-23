@@ -58,10 +58,15 @@ int main(int argc, char *argv[]) {
     shutdown(sock, SHUT_WR);
     int counter;
     char buf[MAXBUF];
-    while ((counter = read(sock, buf, MAXBUF)) > 0) {
-        write(STDOUT_FILENO, buf, counter);
+    ssize_t bytes = recv(sock, buf, MAXBUF - 1, 0);
+    if (bytes == -1) {
+        std::cerr <<  "Failed to read recv data" << std::endl;
+    } else if (bytes == 0) {
+        std::cerr <<  "Empty recv data" << std::endl;
+    } else {
+        buf[bytes] = '\0';
+        std::cout << buf << std::endl;
     }
-
     close(sock);
     return 0;
 }
